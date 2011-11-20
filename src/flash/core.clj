@@ -1,15 +1,15 @@
 (ns flash.core)
 
-(def sample-initial-board
-   {:session-num 0
-    :cards [{:consecutive-correct 0
-             :next-session 0
-             :question "a"
-             :answer 1}
-            {:consecutive-correct 0
-             :next-session 0
-             :question "b"
-             :answer 2}]})
+(def cards
+  [{:category "test"
+    :question "a"
+    :answer 1
+    :consecutive-correct 0
+    :last-answered-time 0
+    :active? true}])
 
 (defn -main [& args]
  (println "hello world"))
+
+
+(slurp "resources/public/cards.clj")
