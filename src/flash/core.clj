@@ -1,15 +1,13 @@
-(ns flash.core)
+(ns flash.core
+  (:require [clojure.pprint :as p]))
 
-(def cards
-  [{:category "test"
-    :question "a"
-    :answer 1
-    :consecutive-correct 0
-    :last-answered-time 0
-    :active? true}])
+(def cards-file "resources/public/cards.clj")
+(defn load-cards [] (load-string (slurp cards-file)))
+(defn save-cards [cards] (spit cards-file (p/pprint cards)))
+(defn show-cards [cards] (p/pprint cards))
+
+; temporary
+(def cards (load-cards))
 
 (defn -main [& args]
  (println "hello world"))
-
-
-(slurp "resources/public/cards.clj")
