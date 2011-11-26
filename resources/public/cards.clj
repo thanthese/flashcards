@@ -1,1 +1,18 @@
-[{:category "test", :question "c", :answer 3, :consecutive-correct 0, :answer-at 2322147209655, :active? true} {:category "test", :question "b", :answer 2, :consecutive-correct 2, :answer-at 1322371905304, :active? true} {:category "test", :question "a", :answer 1, :consecutive-correct 2, :answer-at 1322371906728, :active? true}]
+[{:category "test"
+  :question "c"
+  :answer 3
+  :consecutive-correct 0
+  :answer-at 0
+  :active? false}
+ {:category "test"
+  :question "a"
+  :answer 1
+  :consecutive-correct 0
+  :answer-at 0
+  :active? true}
+ {:category "test"
+  :question "b"
+  :answer 2
+  :consecutive-correct 0
+  :answer-at 0
+  :active? true}]
