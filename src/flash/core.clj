@@ -1,5 +1,6 @@
 (ns flash.core
-  (:require [clojure.pprint :as p]))
+  (:require [clojure.pprint :as p])
+  (:gen-class))
 
 (defn learned-for-today [card]
   (> (:consecutive-correct card) 1))
@@ -72,26 +73,6 @@
       (update-in [:to-ask] concat (activate (take to-move (:inactive stacks))))
       (update-in [:to-ask] shuffle))))
 
-(defn ask [card]
-  (println "Q: " (:question card))
-  (print "A: ")
-  (let [answer (read-line)]
-    (condp = answer
-      ":q"                  :quit
-      ":h"                  :help
-      ":s"                  :stats
-      (str (:answer card))  :right
-                            :wrong)))
-
-(defn show-help []
-  (println "The help message will eventually go here."))
-
-(defn show-statistics [stacks]
-  (println "In play: " (count (:to-ask stacks)))
-  (println "Not-yet-learned: " (count (remove learned-for-today (:to-ask stacks))))
-  (println "Inactive: " (count (:inactive stacks)))
-  (println "Not due: " (count (:not-due stacks))))
-
 (defn mark-card-right [card]
   (-> card
     (assoc :answer-at (+ (now)
@@ -104,7 +85,7 @@
 
 (defn archive-card [stacks card]
   (-> stacks
-    (update-in [:to-ask] rest)
+    (update-in [:to-ask] (comp vec rest))
     (update-in [:not-due] conj card)))
 
 (defn shuffle-card-in [stacks card]
@@ -112,34 +93,58 @@
     (assoc-in [:to-ask 0] card)
     (update-in [:to-ask] shuffle)))
 
+(defn show-help []
+  (println "The help message will eventually go here."))
+
+(defn show-stats [stacks]
+  (println)
+  (println "  " (count (:to-ask stacks)) "In play")
+  (println "  " (count (remove learned-for-today (:to-ask stacks)))
+           "Not-yet-learned")
+  (println "  " (count (:inactive stacks)) "Inactive")
+  (println "  " (count (:not-due stacks)) "Not due")
+  (println))
+
+(defn ask [card]
+  (println)
+  (println "Q: " (:question card))
+  (println)
+  (println "A: ")
+  (println)
+  (let [answer (read-line)]
+    (condp = answer
+      ":q"                  :quit
+      ":h"                  :help
+      ":s"                  :stats
+      (str (:answer card))  :right
+      :wrong)))
+
 (defn main [cards]
   (loop [stacks (introduce-new-cards (cards->stacks cards))]
-    (do
-      (p/pprint stacks)
-      (if (empty? (:to-ask stacks))
-        (do
-          (println "saving cards")
-          (save-cards (stacks->cards stacks))
-          (println "You have learned everything! Take a break for today."))
-        (let [card (first (:to-ask stacks))]
-          (condp = (ask card)
-            :help (do
-                    (show-help)
-                    (recur stacks))
-            :quit (do
-                    (save-cards (stacks->cards stacks))
-                    (println "Catch ya later."))
-            :stats (do
-                     (show-statistics stacks)
-                     (recur stacks))
-            :wrong (do
-                     (println "Wrong")
-                     (recur (update-in stacks [:to-ask 0] mark-card-wrong)))
-            :right (do
-                     (println "Right!")
-                     (let [altered-card (mark-card-right card)]
-                       (if (learned-for-today altered-card)
-                         (recur (archive-card    stacks altered-card))
-                         (recur (shuffle-card-in stacks altered-card)))))))))))
+    (show-stats stacks)
+    (if (empty? (:to-ask stacks))
+      (do
+        (save-cards (stacks->cards stacks))
+        (println "You have learned everything! Take a break."))
+      (let [card (first (:to-ask stacks))]
+        (condp = (ask card)
+          :help (do
+                  (show-help)
+                  (recur stacks))
+          :quit (do
+                  (save-cards (stacks->cards stacks))
+                  (println "Catch ya later."))
+          :stats (do
+                   (show-stats stacks)
+                   (recur stacks))
+          :wrong (do
+                   (println "Wrong")
+                   (recur (update-in stacks [:to-ask 0] mark-card-wrong)))
+          :right (do
+                   (println "Right!")
+                   (let [altered-card (mark-card-right card)]
+                     (if (learned-for-today altered-card)
+                       (recur (archive-card    stacks altered-card))
+                       (recur (shuffle-card-in stacks altered-card))))))))))
 
 (defn -main [& args] (main (load-cards)))
