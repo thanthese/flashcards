@@ -18,11 +18,11 @@ category is injected into the mix.
 
 Requires [leiningen](https://github.com/technomancy/leiningen)
 
-    lein uberwar flash.jar
+    lein uberwar
 
 ## To run
 
-    java -jar flash.jar
+    java -jar flash-1.0.0-SNAPSHOT-standalone.jar
 
 ## License
 
