@@ -9,6 +9,9 @@
 
 ;;; end of constants ;;;
 
+; for DEVELOPMENT only
+; (def stacks (cards->stacks (load-cards)))
+
 (defn load-cards [] (load-string (slurp cards-file)))
 (defn save-cards [cards] (spit cards-file (vec cards)))
 
@@ -92,7 +95,7 @@
                              ...")
                     (println)
                     (println "Enter full file path: ")
-                    (read-line))
+                    (str/trim (read-line)))
         category (do
                    (println "Enter category of new cards: ")
                    (read-line))
@@ -110,62 +113,95 @@
       (update-in [:to-ask] vec))))
 
 (defn show-help []
-  (println "\nHelp:\n  :q quit\n  :h this help message\n  :i import a question/answer file"))
+  (println "
+Help:
+  :q quit
+  :h this help message
+  :h detailed statistics
+  :i import a question/answer file
+"))
 
-(defn show-stats [stacks]
+(defn elapsed-time [starting-time]
+  (let [total-seconds (int (/ (- (now) starting-time) 1000.0))
+        minutes (int (/ total-seconds 60.0))
+        seconds (int (- total-seconds (* 60.0 minutes)))]
+    (str minutes "m " seconds "s")))
+
+(defn show-stats [stacks starting-time]
+  (println "------------------------------------------------------------")
   (println)
-  (println "  " (count (:to-ask stacks)) "In play")
-  (println "  " (count (remove considered-known (:to-ask stacks)))
+  (println "  Elapsed time: " (elapsed-time starting-time))
+  (println)
+  (println " " (count (:to-ask stacks)) "In play")
+  (println " " (count (remove considered-known (:to-ask stacks)))
            "Not-yet-learned")
-  (println "  " (count (:inactive stacks)) "Inactive")
-  (println "  " (count (:not-due stacks)) "Not due")
-  (println))
+  (println " " (count (:inactive stacks)) "Inactive")
+  (println " " (count (:not-due stacks)) "Not due"))
+
+(defn show-details-stats [stacks]
+  (println "------------------------------------------------------------")
+  (println)
+  (println "Active cards and their scores:")
+  (println)
+  (doseq [card (sort-by #(vec (map % [:consecutive-correct :question]))
+                        (:to-ask (cards->stacks (load-cards))))]
+    (println " " (:consecutive-correct card) (:question card)))
+  (println ))
 
 (defn ask [card]
   (println)
-  (println "Category: " (:category card))
+  (println "  Categry : " (:category card))
+  (println "  Score   : " (:consecutive-correct card))
   (println)
   (println (:question card))
   (println)
-  (let [answer (read-line)]
+  (let [answer (str/lower-case (read-line))]
     (condp = answer
-      ":q"                  :quit
-      ":h"                  :help
-      ":i"                  :import
-      (str (:answer card))  :right
+      ":q" :quit
+      ":h" :help
+      ":i" :import
+      ":s" :stats
+      (str/lower-case (str (:answer card))) :right
       :wrong)))
 
 (defn main [cards]
-  (show-help)
-  (loop [stacks (introduce-new-cards (cards->stacks cards))]
-    (show-stats stacks)
-    (if (empty? (:to-ask stacks))
-      (do
-        (save-cards (stacks->cards stacks))
-        (println "You have learned everything! Take a break."))
-      (let [card (first (:to-ask stacks))]
-        (condp = (ask card)
-          :help (do
-                  (show-help)
-                  (recur stacks))
-          :quit (do
-                  (save-cards (stacks->cards stacks))
-                  (println "Catch ya later."))
-          :import (recur (import-new stacks))
-          :wrong (do
-                   (println)
-                   (println "XXXXXXXXXXXXX")
-                   (println "XX  Wrong  XX")
-                   (println "XXXXXXXXXXXXX")
-                   (recur (mark-top-card-wrong stacks)))
-          :right (do
-                   (println)
-                   (println "Right!")
-                   (println)
-                   (let [altered-card (mark-card-right card)]
-                     (if (considered-known altered-card)
-                       (recur (introduce-new-cards
-                                (archive-card stacks altered-card)))
-                       (recur (shuffle-card-in stacks altered-card))))))))))
+  (let [starting-time (now)]
+    (show-help)
+    (loop [stacks (introduce-new-cards (cards->stacks cards))]
+      (show-stats stacks starting-time)
+      (if (empty? (:to-ask stacks))
+        (do
+          (save-cards (stacks->cards stacks))
+          (println "You have learned everything! Take a break."))
+        (let [card (first (:to-ask stacks))]
+          (condp = (ask card)
+            :help (do
+                    (show-help)
+                    (recur stacks))
+            :stats (do
+                     (show-details-stats stacks)
+                     (recur stacks))
+            :quit (do
+                    (save-cards (stacks->cards stacks))
+                    (println "Catch ya later."))
+            :import (recur (import-new stacks))
+            :wrong (do
+                     (println)
+                     (println "XXXXXXXXXXXXX")
+                     (println "XX  Wrong  XX")
+                     (println "XXXXXXXXXXXXX")
+                     (println)
+                     (println "Correct answer: " (:answer card))
+                     (println)
+                     (recur (mark-top-card-wrong stacks)))
+            :right (do
+                     (println)
+                     (println "  ( Right )")
+                     (println)
+                     (let [altered-card (mark-card-right card)]
+                       (if (considered-known altered-card)
+                         (recur (introduce-new-cards
+                                  (archive-card stacks altered-card)))
+                         (recur (shuffle-card-in stacks altered-card)))))))))))
 
 (defn -main [& args] (main (load-cards)))
