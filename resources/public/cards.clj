@@ -5,6 +5,24 @@
   :answer-at 0
   :active? false}
  {:category "test"
+  :question "d"
+  :answer 4
+  :consecutive-correct 0
+  :answer-at 0
+  :active? false}
+ {:category "test2"
+  :question "e"
+  :answer 5
+  :consecutive-correct 0
+  :answer-at 0
+  :active? false}
+ {:category "test3"
+  :question "f"
+  :answer 6
+  :consecutive-correct 0
+  :answer-at 0
+  :active? false}
+ {:category "test"
   :question "a"
   :answer 1
   :consecutive-correct 0

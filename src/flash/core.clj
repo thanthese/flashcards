@@ -2,53 +2,14 @@
   (:require [clojure.pprint :as p])
   (:gen-class))
 
-(defn learned-for-today [card]
-  (> (:consecutive-correct card) 1))
-
-(def new-ones-limit 20)
+(def cards-file "resources/public/cards.clj")
+(def considered-known-at-num-correct 3)
+(def new-ones-batch-size 10)
 
 ;;; end of constants ;;;
 
-; cards IO
-(def cards-file "resources/public/cards.clj")
 (defn load-cards [] (load-string (slurp cards-file)))
 (defn save-cards [cards] (spit cards-file (vec cards)))
-
-; for DEVELOPMENT only
-;(def cards (load-cards))
-;(def stacks (cards->stacks cards))
-
-; for all, return the number of milliseconds
-; in the given number of that unit
-(defn hours  [h] (* h 1000 60 60))
-(defn days   [d] (* d (hours 24)))
-(defn months [m] (* m (days 30)))
-(defn years  [y] (* y (days 365)))
-
-(def consecutive-correct->rest-period
-  { 0 0
-    1 (hours   8)
-    2 (days    1)
-    3 (days    2)
-    4 (days    4)
-    5 (days    8)
-    6 (days   16)
-    7 (months  1)
-    8 (months  2)
-    9 (months  4)
-   10 (months  8)
-   11 (years   1)
-   12 (years   2)
-   13 (years   4)
-   14 (years   8)
-   15 (years  16)
-   16 (years  32)
-   17 (years  64)})
-
-(defn now [] (.getTime (java.util.Date.)))
-
-(defn due? [card]
-  (>= (now) (:answer-at card)))
 
 (defn implicit-category [card]
   (cond (not (:active? card))  :inactive
@@ -61,17 +22,41 @@
 (defn stacks->cards [stacks]
   (apply concat (vals stacks)))
 
-(defn activate [cards]
-  (for [card cards]
-    (assoc card :active? true)))
+(defn considered-known [card]
+  (>= (:consecutive-correct card)
+      considered-known-at-num-correct))
+
+(def hours-8 (* 1000 60 60 8))  ; in milliseconds
+
+(defn consecutive-correct->rest-period [n]
+  (let [m (inc (- n considered-known-at-num-correct))]
+    (if (< m 0)
+      0
+      (* hours-8 (int (Math/pow 2 m))))))
+
+(defn now [] (.getTime (java.util.Date.)))
+
+(defn due? [card]
+  (>= (now) (:answer-at card)))
 
 (defn introduce-new-cards [stacks]
-  (let [not-learned-count (count (remove learned-for-today (:to-ask stacks)))
-        to-move (max 0 (- new-ones-limit not-learned-count))]
-    (-> stacks
-      (update-in [:inactive] (partial drop to-move))
-      (update-in [:to-ask] concat (activate (take to-move (:inactive stacks))))
-      (update-in [:to-ask] shuffle))))
+  (let [not-learned-count (count (remove considered-known (:to-ask stacks)))]
+    (if (>= not-learned-count new-ones-batch-size)
+      stacks
+      (let [categories-list (distinct (map :category (:inactive stacks)))
+            cat-pick (first (shuffle categories-list))
+            card-picks (take new-ones-batch-size
+                             (filter (fn [card] (= cat-pick (:category card)))
+                                     (:inactive stacks)))]
+        (update-in
+          (reduce (fn [s c]
+                    (-> s
+                      (update-in [:inactive] (partial remove (partial = c)))
+                      (update-in [:to-ask] conj (assoc c :active? true))))
+                  stacks
+                  card-picks)
+          [:to-ask]
+          shuffle)))))
 
 (defn mark-card-right [card]
   (-> card
@@ -80,8 +65,8 @@
                            (:consecutive-correct card))))
     (update-in [:consecutive-correct] inc)))
 
-(defn mark-card-wrong [card]
-  (assoc card :consecutive-correct 0))
+(defn mark-top-card-wrong [stack]
+  (assoc-in stack [:to-ask 0 :consecutive-correct] 0))
 
 (defn archive-card [stacks card]
   (-> stacks
@@ -93,13 +78,16 @@
     (assoc-in [:to-ask 0] card)
     (update-in [:to-ask] shuffle)))
 
+(defn import-new [stacks]
+  (println "not yet implemented"))
+
 (defn show-help []
   (println "The help message will eventually go here."))
 
 (defn show-stats [stacks]
   (println)
   (println "  " (count (:to-ask stacks)) "In play")
-  (println "  " (count (remove learned-for-today (:to-ask stacks)))
+  (println "  " (count (remove considered-known (:to-ask stacks)))
            "Not-yet-learned")
   (println "  " (count (:inactive stacks)) "Inactive")
   (println "  " (count (:not-due stacks)) "Not due")
@@ -107,15 +95,15 @@
 
 (defn ask [card]
   (println)
-  (println "Q: " (:question card))
+  (println "Category: " (:category card))
   (println)
-  (println "A: ")
+  (println (:question card))
   (println)
   (let [answer (read-line)]
     (condp = answer
       ":q"                  :quit
       ":h"                  :help
-      ":s"                  :stats
+      ":i"                  :import
       (str (:answer card))  :right
       :wrong)))
 
@@ -134,17 +122,21 @@
           :quit (do
                   (save-cards (stacks->cards stacks))
                   (println "Catch ya later."))
-          :stats (do
-                   (show-stats stacks)
-                   (recur stacks))
+          :import (import-new stacks)
           :wrong (do
-                   (println "Wrong")
-                   (recur (update-in stacks [:to-ask 0] mark-card-wrong)))
+                   (println)
+                   (println "XXXXXXXXXXXXX")
+                   (println "XX  Wrong  XX")
+                   (println "XXXXXXXXXXXXX")
+                   (recur (mark-top-card-wrong stacks)))
           :right (do
+                   (println)
                    (println "Right!")
+                   (println)
                    (let [altered-card (mark-card-right card)]
-                     (if (learned-for-today altered-card)
-                       (recur (archive-card    stacks altered-card))
+                     (if (considered-known altered-card)
+                       (recur (introduce-new-cards
+                                (archive-card stacks altered-card)))
                        (recur (shuffle-card-in stacks altered-card))))))))))
 
 (defn -main [& args] (main (load-cards)))
