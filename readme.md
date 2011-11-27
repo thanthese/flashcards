@@ -16,7 +16,7 @@ category is injected into the mix.
 
 ## To compile
 
-Requires (leiningen)[https://github.com/technomancy/leiningen]
+Requires [leiningen](https://github.com/technomancy/leiningen)
 
     lein uberwar flash.jar
 
