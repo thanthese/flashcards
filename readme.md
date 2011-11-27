@@ -22,7 +22,7 @@ Requires [leiningen](https://github.com/technomancy/leiningen)
 
 ## To run
 
-  java -jar flash.jar
+    java -jar flash.jar
 
 ## License
 
