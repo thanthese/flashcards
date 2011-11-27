@@ -1,5 +1,6 @@
 (ns flash.core
   (:require [clojure.pprint :as p])
+  (:require [clojure.string :as str])
   (:gen-class))
 
 (def cards-file "resources/public/cards.clj")
@@ -11,13 +12,21 @@
 (defn load-cards [] (load-string (slurp cards-file)))
 (defn save-cards [cards] (spit cards-file (vec cards)))
 
+(defn now [] (.getTime (java.util.Date.)))
+
+(defn due? [card]
+  (>= (now) (:answer-at card)))
+
 (defn implicit-category [card]
   (cond (not (:active? card))  :inactive
         (due? card)            :to-ask
         :else                  :not-due))
 
 (defn cards->stacks [cards]
-  (group-by implicit-category cards))
+  (let [groups (group-by implicit-category cards)]
+    {:inactive (get groups :inactive ())
+     :to-ask   (get groups :to-ask   ())
+     :not-due  (get groups :not-due  ())}))
 
 (defn stacks->cards [stacks]
   (apply concat (vals stacks)))
@@ -33,11 +42,6 @@
     (if (< m 0)
       0
       (* hours-8 (int (Math/pow 2 m))))))
-
-(defn now [] (.getTime (java.util.Date.)))
-
-(defn due? [card]
-  (>= (now) (:answer-at card)))
 
 (defn introduce-new-cards [stacks]
   (let [not-learned-count (count (remove considered-known (:to-ask stacks)))]
@@ -79,10 +83,34 @@
     (update-in [:to-ask] shuffle)))
 
 (defn import-new [stacks]
-  (println "not yet implemented"))
+  (let [file-name (do
+                    (println "The import file should have the format:
+                             Q1
+                             A1
+                             Q2
+                             A2
+                             ...")
+                    (println)
+                    (println "Enter full file path: ")
+                    (read-line))
+        category (do
+                   (println "Enter category of new cards: ")
+                   (read-line))
+        new-cards (for [[q a] (partition 2 (str/split
+                                             (slurp file-name)
+                                             #"\n"))]
+                    {:category category
+                     :question q
+                     :answer a
+                     :consecutive-correct 0
+                     :answer-at 0
+                     :active? false})]
+    (-> stacks
+      (update-in [:to-ask] concat new-cards)
+      (update-in [:to-ask] vec))))
 
 (defn show-help []
-  (println "The help message will eventually go here."))
+  (println "\nHelp:\n  :q quit\n  :h this help message\n  :i import a question/answer file"))
 
 (defn show-stats [stacks]
   (println)
@@ -108,6 +136,7 @@
       :wrong)))
 
 (defn main [cards]
+  (show-help)
   (loop [stacks (introduce-new-cards (cards->stacks cards))]
     (show-stats stacks)
     (if (empty? (:to-ask stacks))
@@ -122,7 +151,7 @@
           :quit (do
                   (save-cards (stacks->cards stacks))
                   (println "Catch ya later."))
-          :import (import-new stacks)
+          :import (recur (import-new stacks))
           :wrong (do
                    (println)
                    (println "XXXXXXXXXXXXX")
